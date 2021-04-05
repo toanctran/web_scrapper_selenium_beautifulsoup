@@ -17,13 +17,10 @@ import random
 
 def handler(signal_received, frame):
     # Handle any cleanup here
-    print('SIGINT or CTRL-C detected.')
-    print("Saving data to file")
+    print('SIGINT or CTRL-C detected.Saving data to file')
     df = pd.DataFrame(data=data, columns=data[0].keys())
     # Export and save the DataFrame df to result.csv file
     df.to_csv('result_exit.csv', index=False, encoding='utf_8')
-    print("Successfully save data to result_exit.csv")
-    print("Exiting gracefully")
     exit(0)
 
 signal(SIGINT, handler)
@@ -44,11 +41,11 @@ driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
 
 data = []
 de_muc_list = ['thoi-su', 'the-gioi' ] #, 'phap-luat', 'kinh-doanh', 'cong-nghe', 'xe', 'nhip-song-tre', 'van-hoa','giai-tri', 'giao-duc', 'khoa-hoc', 'suc-khoe' ]
-for de_muc in de_muc_list:
+for i in range(0, len(de_muc_list - 1)):
+    de_muc = de_muc_list[i]
     n = 1
     article_dic = {'category':'', 'article_title' : '', 'article_url':'', 'article':'', 'summary':''}
     
-   
     print(f"Starting scraping the artice in {de_muc}")
     while n < 3:
         article_temp = []
@@ -71,6 +68,13 @@ for de_muc in de_muc_list:
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         news_list = soup.find_all('div', {'class':'name-news'})
 
+        if news_list == [] and i != len(de_muc_list - 1):
+            print("End of {de_muc}. Move to {de_muc_list[i + 1]}")
+        elif news_list == [] and i == len(de_muc_list - 1):
+            print("Successfully scraping all the category on TuoiTre")
+            print("Quitting driver")
+            driver.quit()
+        
         for news in news_list:
             try:
                 article_dic['category'] = de_muc
@@ -99,7 +103,7 @@ for de_muc in de_muc_list:
                 article_dic['article'] = article
             # Handle the error
             except Exception as e:
-                print('We got an error when try to process a article')
+                print('We got an error when try to process an article')
                 print(news)
                 tb = sys.exc_info()[2]
                 print(e.with_traceback(tb))
