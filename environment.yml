@@ -1,0 +1,4 @@
+name: web_scraping
+channels:
+  - defaults
+prefix: C:\Users\PC\.conda\envs\web_scraping
