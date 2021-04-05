@@ -41,13 +41,13 @@ driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
 
 data = []
 de_muc_list = ['thoi-su', 'the-gioi' ] #, 'phap-luat', 'kinh-doanh', 'cong-nghe', 'xe', 'nhip-song-tre', 'van-hoa','giai-tri', 'giao-duc', 'khoa-hoc', 'suc-khoe' ]
-for i in range(0, len(de_muc_list - 1)):
+for i in range(0, len(de_muc_list) - 1 ):
     de_muc = de_muc_list[i]
     n = 1
     article_dic = {'category':'', 'article_title' : '', 'article_url':'', 'article':'', 'summary':''}
     
     print(f"Starting scraping the artice in {de_muc}")
-    while n < 3:
+    while True:
         article_temp = []
         print(f"Getting page {n} of {de_muc} ...")  
         url = "https://tuoitre.vn/" + de_muc + "/trang-" + str(n) + ".htm"
@@ -68,9 +68,9 @@ for i in range(0, len(de_muc_list - 1)):
         soup = BeautifulSoup(driver.page_source, 'html.parser')
         news_list = soup.find_all('div', {'class':'name-news'})
 
-        if news_list == [] and i != len(de_muc_list - 1):
+        if news_list == [] and i != len(de_muc_list) - 1:
             print("End of {de_muc}. Move to {de_muc_list[i + 1]}")
-        elif news_list == [] and i == len(de_muc_list - 1):
+        elif news_list == [] and i == len(de_muc_list) - 1:
             print("Successfully scraping all the category on TuoiTre")
             print("Quitting driver")
             driver.quit()
@@ -104,9 +104,9 @@ for i in range(0, len(de_muc_list - 1)):
             # Handle the error
             except Exception as e:
                 print('We got an error when try to process an article')
-                print(news)
                 tb = sys.exc_info()[2]
                 print(e.with_traceback(tb))
+                continue
 
             if article_dic not in data:
                 article_dic_copy = article_dic.copy()
