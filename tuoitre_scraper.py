@@ -10,7 +10,7 @@ from signal import signal, SIGINT
 from sys import exit
 
 import pandas as pd
-
+g
 from time import time, sleep
 import sys
 import random
@@ -40,14 +40,16 @@ options.add_argument("--incognito")
 driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
 
 data = []
-de_muc_list = ['thoi-su', 'the-gioi' ] #, 'phap-luat', 'kinh-doanh', 'cong-nghe', 'xe', 'nhip-song-tre', 'van-hoa','giai-tri', 'giao-duc', 'khoa-hoc', 'suc-khoe' ]
+de_muc_list = ['thoi-su', 'the-gioi' , 'phap-luat', 'kinh-doanh', ] #'cong-nghe', 'xe', 'nhip-song-tre', 'van-hoa','giai-tri', 'giao-duc', 'khoa-hoc', 'suc-khoe' ]
 for i in range(0, len(de_muc_list) - 1 ):
     de_muc = de_muc_list[i]
+    waiting_page = 0
     n = 1
+    found = True
     article_dic = {'category':'', 'article_title' : '', 'article_url':'', 'article':'', 'summary':''}
     
     print(f"Starting scraping the artice in {de_muc}")
-    while True:
+    while found:
         article_temp = []
         print(f"Getting page {n} of {de_muc} ...")  
         url = "https://tuoitre.vn/" + de_muc + "/trang-" + str(n) + ".htm"
@@ -69,11 +71,14 @@ for i in range(0, len(de_muc_list) - 1 ):
         news_list = soup.find_all('div', {'class':'name-news'})
 
         if news_list == [] and i != len(de_muc_list) - 1:
+            found = False
             print("End of {de_muc}. Move to {de_muc_list[i + 1]}")
         elif news_list == [] and i == len(de_muc_list) - 1:
             print("Successfully scraping all the category on TuoiTre")
             print("Quitting driver")
+            found = False
             driver.quit()
+            break
         
         for news in news_list:
             try:
@@ -86,6 +91,8 @@ for i in range(0, len(de_muc_list) - 1 ):
                 article_dic['article_url'] = article_href
 
                 driver.get(article_href)
+                driver.implicitly_wait(30)
+
                 article_page = BeautifulSoup(driver.page_source, 'html.parser')
                 article_dic['summary'] = article_page.find('h2', {'class':'sapo'}).text
                 
@@ -113,23 +120,48 @@ for i in range(0, len(de_muc_list) - 1 ):
                 article_temp.append(article_dic_copy)
                 print(f"Scraped {len(article_temp)} articles")
 
+        if article_temp == []:
+            print(f'Cannot find new article in page {n} of {de_muc}. Waiting page: {waiting_page} pages')
+            waiting_page += 1
+
+        if article_temp == [] and i != len(de_muc_list) - 1 and waiting_page == 5:
+            print("End of {de_muc}. Move to {de_muc_list[i + 1]}")
+            found = False
+            
+        elif article_temp == [] and i == len(de_muc_list) - 1  and waiting_page == 5:
+            print("Successfully scraping all the category on TuoiTre")
+            found = False
+            
+
         if data != [] and all(elem in article_temp for elem in data) and article_temp != [] :
             print("Len of data", len(data))
             print("Len of article_temp", len(article_temp))
             print('Finish scrapping.')
-            driver.quit()
-            break
+            print('Saving data to result.csv')
+            # Create the Pandas DataFrame with the collected data       
+            df = pd.DataFrame(data=data, columns=data[0].keys())
+            # Export and save the DataFrame df to result.csv file
+            df.to_csv('result.csv', index=False, encoding='utf_8')
+            print('Successfully saved data to result.csv')
+            found = False
+            
         print(f"Starting save {len(article_temp)} articles from article_temp to data")
         print(f"Data have {len(data)} articles before saving")
         data = data + article_temp
         print(f"Successfully saving {len(article_temp)} articles from article_temp to data")
         print(f"Data have {len(data)} articles after saving")
-        sleep_time = random.randint(1, 5)
+        sleep_time = random.randint(5, 10)
         print(f'Scrapper sleep in {sleep_time}')
         sleep(sleep_time)
         print(f'Scrapped page {n} of {de_muc}. Continue to page {n+1} of {de_muc} .')
             
         n += 1
+        print('Saving data to result_temp.csv')
+        # Create the Pandas DataFrame with the collected data       
+        df = pd.DataFrame(data=data, columns=data[0].keys())
+        # Export and save the DataFrame df to result.csv file
+        df.to_csv('result_temp.csv', index=False, encoding='utf_8')
+        print('Successfully saved data to result_temp.csv')
         
 
 
