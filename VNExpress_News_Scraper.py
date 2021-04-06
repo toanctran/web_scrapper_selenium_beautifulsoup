@@ -40,7 +40,8 @@ options.add_argument("--incognito")
 driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
 
 data = []
-de_muc_list = ['thoi-su', 'the-gioi' , 'phap-luat', 'kinh-doanh', ] #'cong-nghe', 'xe', 'nhip-song-tre', 'van-hoa','giai-tri', 'giao-duc', 'khoa-hoc', 'suc-khoe' ]
+de_muc_list = ['thoi-su', 'the-gioi' , 'phap-luat', 'kinh-doanh', 'so-hoa', 'oto-xe-may', 'doi-song', 'van-hoa','giai-tri', 'giao-duc', 'khoa-hoc', 'suc-khoe', 'the-thao', 'du-lich']
+
 for i in range(0, len(de_muc_list) - 1 ):
     de_muc = de_muc_list[i]
     waiting_page = 0
@@ -51,12 +52,15 @@ for i in range(0, len(de_muc_list) - 1 ):
     print(f"Starting scraping the artice in {de_muc}")
     while found:
         article_temp = []
-        print(f"Getting page {n} of {de_muc} ...")  
-        url = "https://tuoitre.vn/" + de_muc + "/trang-" + str(n) + ".htm"
+        print(f"Getting page {n} of {de_muc} ...")
+        if n == 1:
+            url = "https://vnexpress.net/" + de_muc
+        else:
+            url = "https://vnexpress.net/"+ de_muc + "-p" + str(n)
         driver.get(url)
         try:
             # # Wait until the element with CLASS_NAME = product-item present
-            # myElem = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CLASS_NAME, 'news-item')))
+            # myElem = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CLASS_NAME, 'item-news')))
 
             # Wait 30s to poll the DOM element when trying to find any element (or elements) not immediately available
             driver.implicitly_wait(30)
@@ -68,7 +72,8 @@ for i in range(0, len(de_muc_list) - 1 ):
             driver.quit()
 
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        news_list = soup.find_all('div', {'class':'name-news'})
+        news_list = soup.find_all('article', {'class':'item-news'})
+        print(f"Found {len(news_list)} articles in page {n} of {de_muc}")
 
         if news_list == [] and i != len(de_muc_list) - 1:
             found = False
@@ -78,37 +83,33 @@ for i in range(0, len(de_muc_list) - 1 ):
             print("Quitting driver")
             found = False
             driver.quit()
-            
         
         for news in news_list:
+            if news.find('p', {'class':'info-ads'}):
+                continue
+            
             try:
                 article_dic['category'] = de_muc
-
-                try:
-                    article_dic['article_title'] = news.a['title']
-                    print(f"Scraping: {news.a['title']}")
-                except:
-                    continue
-                article_href = "https://tuoitre.vn" + news.a['href']
+                
+                article_dic['article_title'] = news.h3.a['title']
+                print(f"Scraping: {news.h3.a['title']}")
+                
+                article_href = news.h3.a['href']
                 article_dic['article_url'] = article_href
 
                 driver.get(article_href)
                 driver.implicitly_wait(30)
 
                 article_page = BeautifulSoup(driver.page_source, 'html.parser')
-                article_dic['summary'] = article_page.find('h2', {'class':'sapo'}).text
+                article_dic['summary'] = article_page.find('p', {'class':'description'}).text
                 
-                article_ = article_page.find('div', {"id": "main-detail-body"}).find_all('p')
-                if article_page.find('div', {'type':'RelatedOneNews'}) != None:
-                    related_ = article_page.find('div', {'type':'RelatedOneNews'}).p.text
+                article_ = article_page.find('article', {'class':'fck_detail'}).find_all('p', {"class": "Normal"})
+                
 
                 article = ''
                 if article_ != []:
                     for item in article_:
-                        if related_ != None and item.text == related_:
-                            continue
-                        else:
-                            article = article + item.text + " "
+                        article = article + item.text + " "
                 article_dic['article'] = article
             # Handle the error
             except Exception as e:
@@ -156,9 +157,9 @@ for i in range(0, len(de_muc_list) - 1 ):
         print(f"***********************************************")
         sleep_time = random.randint(5, 10)
         print(f'Scrapper sleep in {sleep_time}')
-        
-            
+        sleep(sleep_time)
         n += 1
+
         print('Saving data to result_temp.csv')
         # Create the Pandas DataFrame with the collected data       
         df = pd.DataFrame(data=data, columns=data[0].keys())
@@ -180,9 +181,3 @@ for i in range(0, len(de_muc_list) - 1 ):
 df = pd.DataFrame(data=data, columns=data[0].keys())
 # Export and save the DataFrame df to result.csv file
 df.to_csv('result.csv', index=False, encoding='utf_8')
-
-            
-
-        
-
-        
