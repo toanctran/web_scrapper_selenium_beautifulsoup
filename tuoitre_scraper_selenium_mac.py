@@ -33,6 +33,7 @@ def handler(signal_received, frame):
     df = pd.DataFrame(data=data, columns=data[0].keys())
     # Export and save the DataFrame df to result.csv file
     df.to_csv('tuoitre_result_exit.csv', index=False, encoding='utf_8')
+    driver.quit()
     exit(0)
 
 
@@ -42,7 +43,7 @@ log.info("***  START SCRAPER   ***")
 log.info('')
 log.info("Running. Press Ctrl+C to exit")
 
-DRIVER_PATH = 'chromedriver_mac64/chromedriver.exe'
+DRIVER_PATH = 'chromedriver_mac64/chromedriver'
 
 uastrings = [
     "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/38.0.2125.111 Safari/537.36",
@@ -77,7 +78,7 @@ driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
 
 data = []
 de_muc_list = ['thoi-su', 'the-gioi', 'phap-luat',
-               'kinh-doanh', 'xe', 'nhip-song-tre', 'van-hoa','giai-tri', 'giao-duc', 'khoa-hoc', 'suc-khoe' ] # ['thoi-su', ]
+               'kinh-doanh', 'xe', 'nhip-song-tre', 'van-hoa', 'giai-tri', 'giao-duc', 'khoa-hoc', 'suc-khoe']
 for i in range(0, len(de_muc_list) - 1):
     de_muc = de_muc_list[i]
     n = 1
@@ -88,38 +89,58 @@ for i in range(0, len(de_muc_list) - 1):
     log.info(f"Starting scraping the article in {de_muc}")
     while found:
         article_temp = []
-        print(f"Getting page {n} of {de_muc} ...")
-        url = "https://tuoitre.vn/" + de_muc + "/trang-" + str(n) + ".htm"
-        try:
-            driver.get(url)
-        except NoSuchWindowException:
-            driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
-            driver.get(url)
 
+        url = "https://tuoitre.vn/" + de_muc + "/trang-99.htm"
 
         try:
+            driver.get(url)
+            driver.implicitly_wait(20)
+
+            click = 1
+            while click < 1000:
+                try:
+                    print(f'Scraping {url}')
+                    print(f'Last URL: {driver.current_url}')
+                    WebDriverWait(driver, 30).until(
+                        EC.visibility_of_element_located((By.CLASS_NAME, "readmore")))
+                    myElem = driver.find_element_by_class_name("readmore")
+
+                    driver.execute_script("return arguments[0].scrollIntoView(true);",
+                                          myElem)
+                    sleep(5)
+                    WebDriverWait(driver, 30).until(
+                        EC.element_to_be_clickable((By.CLASS_NAME, 'btn-readmore')))
+                    myButton = driver.find_element_by_class_name("btn-readmore")
+                    driver.execute_script("arguments[0].click();", myButton)
+
+                    print(f'Finished {click} clicks')
+                    print(f'Current URL: {driver.current_url}')
+                    if click%5 == 0:
+                        sleep(random.randint(10,20))
+                    else:
+                        sleep(random.randint(1,5))
+                    click += 1
+
+                except (TimeoutException, StaleElementReferenceException) as e:
+                    log.warning("No more Read More buttons")
+                    log.info("Start scraping the new list")
+                    break
+
+            log.info(f"Finish click Read More button {click} times")
+
             try:
-                # # Wait until the element with CLASS_NAME = product-item present
-                # myElem = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CLASS_NAME, 'name-news')))
-
-                # Wait 30s to poll the DOM element when trying to find any element (or elements) not immediately available
                 driver.implicitly_wait(30)
-
-                log.info(f"Page {n} in {de_muc} is ready!")
-
                 soup = BeautifulSoup(driver.page_source, 'html.parser')
-
-                # r = requests.get(url, headers)
-                # soup = BeautifulSoup(r.text, 'html.parser')
-                news_list = []
-
                 news_list = soup.find_all('div', {'class': 'name-news'})
                 assert news_list != [], "Cannot scrape the list of articles"
                 assert soup.find('div', {'class': 'main-content-body'}) is None, "This is not article page"
 
                 log.info(f"Found {len(news_list)} articles in page {n} of {de_muc}")
 
+                count = 0
+
                 for news in news_list:
+
                     try:
                         article_title = news.a['title']
                         article_href = "https://tuoitre.vn" + news.a['href']
@@ -162,11 +183,27 @@ for i in range(0, len(de_muc_list) - 1):
                     article_dic['category'] = de_muc
                     article_dic['article_title'] = article_title
                     article_dic['article_url'] = article_href
+                    count += 1
 
                     if article_dic not in data:
                         article_dic_copy = article_dic.copy()
                         article_temp.append(article_dic_copy)
                         log.info(f"Scraped {len(article_temp)} articles")
+
+                    if count == 15:
+                        sleep_time = random.randint(5, 10)
+                        log.info(f'Scrapper sleep in {sleep_time}')
+                        sleep(sleep_time)
+                        count = 0
+
+                if article_temp == [] and i != len(de_muc_list) - 1 and waiting_page == 5:
+                    log.info(f"End of {de_muc}. Move to {de_muc_list[i + 1]}")
+                    found = False
+                elif article_temp == [] and i == len(de_muc_list) - 1 and waiting_page == 5:
+                    log.info("Successfully scraping all the category on TuoiTre")
+                    found = False
+                    driver.quit()
+                    continue
 
                 if data != [] and all(elem in article_temp for elem in data) and article_temp != []:
                     log.info(f'Finish scrapping {de_muc}')
@@ -189,7 +226,6 @@ for i in range(0, len(de_muc_list) - 1):
                 log.info(f"* Data have {len(data)} articles after saving *")
                 print(f"***********************************************")
 
-                n += 1
                 log.info('Saving data to tuoitre_result_temp.csv')
                 # Create the Pandas DataFrame with the collected data
                 df = pd.DataFrame(data=data, columns=data[0].keys())
@@ -199,155 +235,27 @@ for i in range(0, len(de_muc_list) - 1):
                 log.info(f"**********************************************************")
                 log.info(f"* Result_temp.csv have {len(data)} articles after saving *")
                 log.info(f"**********************************************************")
-                sleep_time = random.randint(5, 10)
-                log.info(f'Scrapper sleep in {sleep_time}')
-                sleep(sleep_time)
-                log.info(f'Scrapped page {n} of {de_muc}. Continue to page {n + 1} of {de_muc} .')
+
+                log.info(f'Finished scraped {de_muc}. Continue to {de_muc_list[i + 1]} .')
                 log.info('')
                 log.info("##################################################################")
                 log.info('')
+                found = False
+                continue
 
             except AssertionError as msg:
-
-                log.warning(f'We got an error when try to process page {n} of {de_muc}')
                 log.warning(msg)
-                log.warning("Loading took too much time!")
-                log.warning("Try to find a See More button")
-                url_temp = "https://tuoitre.vn/" + de_muc + "/trang-99.htm"
-                driver.get(url_temp)
-                driver.implicitly_wait(30)
-                click = 0
-                count = 0
-                while click < 1000:
-                    try:
-
-                        driver.execute_script("return arguments[0].scrollIntoView(true);",
-                                              WebDriverWait(driver, 10).until(
-                                                  EC.visibility_of_element_located((By.CLASS_NAME, "btn-readmore"))))
-                        driver.implicitly_wait(20)
-                        driver.execute_script("arguments[0].click();",
-                                              WebDriverWait(driver, 10).until(EC.element_to_be_clickable(
-                                                  (By.CLASS_NAME, "btn-readmore"))))
-                        click += 1
-
-                    except (TimeoutException, StaleElementReferenceException) as e:
-                        log.warning("No more Read More buttons")
-                        log.info("Start scraping the new list")
-
-                log.info(f"Finish click Read More button {click} times")
-
-                try:
-                    driver.implicitly_wait(30)
-                    soup = BeautifulSoup(driver.page_source, 'html.parser')
-                    news_list = soup.find_all('div', {'class': 'name-news'})
-                    assert news_list != [], "Cannot scrape the list of articles"
-                    assert soup.find('div', {'class': 'main-content-body'}) is None, "This is not article page"
-
-                    log.info(f"Found {len(news_list)} articles in page {n} of {de_muc}")
-
-                    for news in news_list:
-                        try:
-                            article_title = news.a['title']
-                            article_href = "https://tuoitre.vn" + news.a['href']
-                            print(f"Scraping: {news.a['title']}")
-                        except Exception as e:
-                            log.warning('We got an error when try to process an article')
-                            tb = sys.exc_info()[2]
-                            log.warning(e.with_traceback(tb))
-                            log.warning(news)
-                            log.warning("Move to next article")
-                            continue
-
-                        try:
-                            r = requests.get(article_href, headers)
-
-                            article_page = BeautifulSoup(r.text, 'html.parser')
-
-                            article_dic['summary'] = article_page.find('h2', {'class': 'sapo'}).text
-
-                            article_ = article_page.find('div', {"id": "main-detail-body"}).find_all('p')
-                            if article_page.find('div', {'type': 'RelatedOneNews'}) is not None:
-                                related_ = article_page.find('div', {'type': 'RelatedOneNews'}).p.text
-
-                            article = ''
-                            if article_:
-                                for item in article_:
-                                    if related_ and item.text == related_:
-                                        continue
-                                    else:
-                                        article = article + item.text + " "
-                        except Exception as e:
-                            log.warning(
-                                f'We got an error when try to process an article: {article_title} at {article_href}')
-                            tb = sys.exc_info()[2]
-                            log.warning(e.with_traceback(tb))
-                            log.warning("Move to next article")
-                            continue
-
-                        article_dic['article'] = article
-                        article_dic['category'] = de_muc
-                        article_dic['article_title'] = article_title
-                        article_dic['article_url'] = article_href
-
-                        if article_dic not in data:
-                            article_dic_copy = article_dic.copy()
-                            article_temp.append(article_dic_copy)
-                            log.info(f"Scraped {len(article_temp)} articles")
-                        count += 1
-                        if count == 15:
-                            sleep_time = random.randint(5, 10)
-                            log.info(f'Scrapper sleep in {sleep_time}')
-                            sleep(sleep_time)
-                            count = 0
-
-                    if data != [] and all(elem in article_temp for elem in data) and article_temp != []:
-                        log.info(f'Finish scrapping {de_muc}')
-                        log.info(f'There are {len(data)} after scraping {de_muc}')
-                        log.info('Saving data to tuoitre_result.csv')
-                        # Create the Pandas DataFrame with the collected data
-                        df = pd.DataFrame(data=data, columns=data[0].keys())
-                        # Export and save the DataFrame df to result.csv file
-                        df.to_csv('tuoitre_result.csv', index=False, encoding='utf_8')
-                        log.info('Successfully saved data to tuoitre_result.csv')
-                        log.info(f'Continue to {de_muc_list[i + 1]}')
-                        found = False
-                        continue
-
-                    log.info(f"Starting save {len(article_temp)} articles from article_temp to data")
-                    log.info(f"Data have {len(data)} articles before saving")
-                    data = data + article_temp
-                    log.info(f"Successfully saving {len(article_temp)} articles from article_temp to data")
-                    log.info(f"***********************************************")
-                    log.info(f"* Data have {len(data)} articles after saving *")
-                    print(f"***********************************************")
-
-                    log.info('Saving data to tuoitre_result_temp.csv')
-                    # Create the Pandas DataFrame with the collected data
-                    df = pd.DataFrame(data=data, columns=data[0].keys())
-                    # Export and save the DataFrame df to tuoitre_result_temp.csv file
-                    df.to_csv('tuoitre_result_temp.csv', index=False, encoding='utf_8')
-                    log.info('Successfully saved data to tuoitre_result_temp.csv')
-                    log.info(f"**********************************************************")
-                    log.info(f"* Result_temp.csv have {len(data)} articles after saving *")
-                    log.info(f"**********************************************************")
-        
-                    log.info(f'Finished scraped {de_muc}. Continue to {de_muc_list[i+1]} .')
-                    log.info('')
-                    log.info("##################################################################")
-                    log.info('')
-                    found = False
-                    continue
-
-                except AssertionError as msg:
-                    log.warning(msg)
-                    found = False
-                    if i == len(de_muc_list) - 1:
-                        log.info("Successfully scraping all the category on TuoiTre")
-                        log.info("Quitting driver")
-                        driver.quit()
-                    else:
-                        log.info(f"End of {de_muc}. Move to {de_muc_list[i + 1]}")
-
+                found = False
+                if i == len(de_muc_list) - 1:
+                    log.info("Successfully scraping all the category on TuoiTre")
+                    log.info("Quitting driver")
+                    driver.quit()
+                else:
+                    log.info(f"End of {de_muc}. Move to {de_muc_list[i + 1]}")
+        except NoSuchWindowException:
+            driver.quit()
+            driver = webdriver.Chrome(options=options, executable_path=DRIVER_PATH)
+            driver.get(url)
         except Exception as e:
             tb = sys.exc_info()[2]
             log.warning(e.with_traceback(tb))
@@ -358,8 +266,6 @@ for i in range(0, len(de_muc_list) - 1):
                 driver.quit()
             else:
                 log.info(f"End of {de_muc}. Move to {de_muc_list[i + 1]}")
-
-
 
 # Create the Pandas DataFrame with the collected data
 df = pd.DataFrame(data=data, columns=data[0].keys())
