@@ -62,9 +62,9 @@ headers = {
 }
 
 data = []
-de_muc_list = ['thoi-su', 'the-gioi', 'phap-luat',
+de_muc_list = [
                'kinh-doanh', 'xe', 'nhip-song-tre', 'van-hoa', 'giai-tri', 'giao-duc', 'khoa-hoc',
-               'suc-khoe']  # ['thoi-su', ]
+               'suc-khoe']  # ['thoi-su', 'the-gioi', 'phap-luat',]
 for i in range(0, len(de_muc_list) - 1):
     de_muc = de_muc_list[i]
     n = 1
